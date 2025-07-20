@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="card p-4">
+    <form method="post" id="invoice-form">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label for="{{ invoice_form.customer.id_for_label }}" class="form-label">Existing Customer:</label>
+            {{ invoice_form.customer }}
+            {% if invoice_form.customer.errors %}
+                <div class="text-danger">{{ invoice_form.customer.errors }}</div>
+            {% endif %}
+            <small class="form-text text-muted">Or create a new one below.</small>
+        </div>
+
+        <div class="mb-3">
+            <label for="new_customer_name" class="form-label">New Customer Name (optional):</label>
+            <input type="text" id="new_customer_name" name="new_customer_name" class="form-control">
+            <small class="form-text text-muted">If you enter a name here, a new customer will be created or an existing one with this name will be used.</small>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="{{ invoice_form.issue_date.id_for_label }}" class="form-label">Issue Date:</label>
+                {{ invoice_form.issue_date }}
+                {% if invoice_form.issue_date.errors %}
+                    <div class="text-danger">{{ invoice_form.issue_date.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="col-md-6">
+                <label for="{{ invoice_form.due_date.id_for_label }}" class="form-label">Due Date:</label>
+                {{ invoice_form.due_date }}
+                {% if invoice_form.due_date.errors %}
+                    <div class="text-danger">{{ invoice_form.due_date.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="{{ invoice_form.status.id_for_label }}" class="form-label">Status:</label>
+            {{ invoice_form.status }}
+            {% if invoice_form.status.errors %}
+                <div class="text-danger">{{ invoice_form.status.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label for="{{ invoice_form.notes.id_for_label }}" class="form-label">Notes:</label>
+            {{ invoice_form.notes }}
+            {% if invoice_form.notes.errors %}
+                <div class="text-danger">{{ invoice_form.notes.errors }}</div>
+            {% endif %}
+        </div>
+
+        <hr>
+        <h5>Invoice Items</h5>
+        <div id="invoice-items-container">
+            {{ invoice_item_formset.management_form }}
+            {% for form in invoice_item_formset %}
+                <div class="row mb-2 invoice-item-row {% if form.DELETE %}d-none{% endif %}">
+                    <div class="col-md-5">
+                        <label for="{{ form.description.id_for_label }}" class="form-label visually-hidden">Description</label>
+                        {{ form.description }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ form.quantity.id_for_label }}" class="form-label visually-hidden">Quantity</label>
+                        {{ form.quantity }}
+                    </div>
+                    <div class="col-md-2">
+                        <label for="{{ form.unit_price.id_for_label }}" class="form-label visually-hidden">Unit Price</label>
+                        {{ form.unit_price }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label visually-hidden">Line Total</label>
+                        <input type="text" class="form-control line-total" readonly value="{{ form.instance.line_total|floatformat:2 }}">
+                    </div>
+                    <div class="col-md-1 d-flex align-items-center">
+                        {% if form.instance.pk %}
+                            {{ form.DELETE }}
+                            <button type="button" class="btn btn-danger btn-sm remove-item-btn" title="Remove Item">X</button>
+                        {% else %}
+                            <button type="button" class="btn btn-danger btn-sm remove-item-btn" title="Remove Item">X</button>
+                        {% endif %}
+                    </div>
+                    {% if form.errors %}
+                        <div class="col-12 text-danger mt-1">
+                            {% for field in form %}
+                                {% if field.errors %}{{ field.label }}: {{ field.errors }}{% endif %}
+                            {% endfor %}
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        <button type="button" id="add-item" class="btn btn-secondary btn-sm mt-2">Add Item</button>
+
+        <div class="text-end mt-4">
+            <h4 class="d-inline-block me-3">Total: $<span id="invoice-total">0.00</span></h4>
+            <button type="submit" class="btn btn-success btn-lg">Save Invoice</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addItemButton = document.getElementById('add-item');
+        const invoiceItemsContainer = document.getElementById('invoice-items-container');
+        const totalFormsInput = document.querySelector('input[name="items-TOTAL_FORMS"]');
+        const invoiceTotalSpan = document.getElementById('invoice-total');
+
+        function updateElementIndex(el, prefix, ndx) {
+            const idRegex = new RegExp(`(${prefix}-(\\d){1}-)`);
+            const nameRegex = new RegExp(`(${prefix}-(\\d){1}-)`);
+            if (el.id) el.id = el.id.replace(idRegex, `${prefix}-${ndx}-`);
+            if (el.name) el.name = el.name.replace(nameRegex, `${prefix}-${ndx}-`);
+        }
+
+        function calculateLineTotal(row) {
+            const quantityInput = row.querySelector('.item-quantity');
+            const unitPriceInput = row.querySelector('.item-unit-price');
+            const lineTotalInput = row.querySelector('.line-total');
+
+            const quantity = parseFloat(quantityInput.value) || 0;
+            const unitPrice = parseFloat(unitPriceInput.value) || 0;
+            const lineTotal = (quantity * unitPrice).toFixed(2);
+            lineTotalInput.value = lineTotal;
+            return parseFloat(lineTotal);
+        }
+
+        function updateInvoiceTotal() {
+            let grandTotal = 0;
+            document.querySelectorAll('.invoice-item-row').forEach(row => {
+                // Only include visible rows (not marked for deletion)
+                const deleteCheckbox = row.querySelector('input[type="checkbox"][id$="-DELETE"]');
+                if (!deleteCheckbox || !deleteCheckbox.checked) {
+                    grandTotal += calculateLineTotal(row);
+                }
+            });
+            invoiceTotalSpan.textContent = grandTotal.toFixed(2);
+        }
+
+        function addEventListenersToRow(row) {
+            const quantityInput = row.querySelector('.item-quantity');
+            const unitPriceInput = row.querySelector('.item-unit-price');
+            const removeButton = row.querySelector('.remove-item-btn');
+            const deleteCheckbox = row.querySelector('input[type="checkbox"][id$="-DELETE"]');
+
+            if (quantityInput) {
+                quantityInput.addEventListener('input', () => {
+                    calculateLineTotal(row);
+                    updateInvoiceTotal();
+                });
+            }
+            if (unitPriceInput) {
+                unitPriceInput.addEventListener('input', () => {
+                    calculateLineTotal(row);
+                    updateInvoiceTotal();
+                });
+            }
+
+            if (removeButton) {
+                removeButton.addEventListener('click', () => {
+                    if (deleteCheckbox) {
+                        deleteCheckbox.checked = true;
+                        row.classList.add('d-none'); // Hide the row
+                    } else {
+                        row.remove(); // Remove completely if it's a new, unsaved row
+                    }
+                    updateInvoiceTotal();
+                    // Re-index forms if a row is removed (important for POST data)
+                    updateFormsetIndexes();
+                });
+            }
+        }
+
+        function updateFormsetIndexes() {
+            let index = 0;
+            document.querySelectorAll('.invoice-item-row').forEach(row => {
+                // Only re-index visible rows that are not marked for deletion
+                const deleteCheckbox = row.querySelector('input[type="checkbox"][id$="-DELETE"]');
+                if (!deleteCheckbox || !deleteCheckbox.checked) {
+                    row.querySelectorAll('input, select, textarea').forEach(el => {
+                        updateElementIndex(el, 'items', index);
+                    });
+                    index++;
+                }
+            });
+            totalFormsInput.value = index; // Update TOTAL_FORMS to reflect actual count
+        }
+
+
+        // Add new item row
+        addItemButton.addEventListener('click', function() {
+            const currentForms = parseInt(totalFormsInput.value);
+            const emptyForm = invoiceItemsContainer.querySelector('.invoice-item-row.d-none'); // Find a hidden empty form if available
+
+            let newRow;
+            if (emptyForm) {
+                // If an empty form was hidden (e.g., from a deleted item), reuse it
+                newRow = emptyForm;
+                newRow.classList.remove('d-none');
+                newRow.querySelectorAll('input, select, textarea').forEach(el => {
+                    if (el.type !== 'hidden' && el.type !== 'checkbox') {
+                        el.value = ''; // Clear values
+                    }
+                    if (el.type === 'checkbox' && el.id.endsWith('-DELETE')) {
+                        el.checked = false; // Uncheck delete
+                    }
+                });
+            } else {
+                // Clone the last visible row to maintain structure and classes
+                const lastRow = invoiceItemsContainer.querySelector('.invoice-item-row:not(.d-none):last-of-type');
+                if (lastRow) {
+                    newRow = lastRow.cloneNode(true);
+                    newRow.querySelectorAll('input, select, textarea').forEach(el => {
+                        if (el.type !== 'hidden' && el.type !== 'checkbox') {
+                            el.value = ''; // Clear values for new row
+                        }
+                        if (el.type === 'checkbox' && el.id.endsWith('-DELETE')) {
+                            el.checked = false; // Uncheck delete for new row
+                        }
+                    });
+                    // Clear primary key for new row
+                    const pkInput = newRow.querySelector('input[type="hidden"][id$="-id"]');
+                    if (pkInput) pkInput.value = '';
+                } else {
+                    // Fallback if no rows exist (shouldn't happen with min_num=1)
+                    console.error("No existing row to clone. Formset might not be initialized correctly.");
+                    return;
+                }
+            }
+
+            // Update indices for the new row
+            const nextIndex = currentForms; // Use the current TOTAL_FORMS as the index for the new form
+            newRow.querySelectorAll('input, select, textarea').forEach(el => {
+                updateElementIndex(el, 'items', nextIndex);
+            });
+
+            invoiceItemsContainer.appendChild(newRow);
+            totalFormsInput.value = currentForms + 1; // Increment TOTAL_FORMS
+            addEventListenersToRow(newRow); // Add listeners to the new row
+            updateInvoiceTotal(); // Recalculate total
+        });
+
+        // Add event listeners to existing rows on page load
+        document.querySelectorAll('.invoice-item-row').forEach(addEventListenersToRow);
+
+        // Initial calculation of the invoice total
+        updateInvoiceTotal();
+    });
+</script>
+{% endblock %}

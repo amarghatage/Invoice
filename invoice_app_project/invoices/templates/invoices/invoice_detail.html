@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="card p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4>Invoice Details - {{ invoice.invoice_number }}</h4>
+        <div>
+            <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-warning me-2">Edit Invoice</a>
+            <a href="{% url 'invoice_pdf' invoice.pk %}" class="btn btn-secondary" target="_blank">Generate PDF</a>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <h5>Customer Details</h5>
+            <p><strong>Name:</strong> {{ invoice.customer.name }}</p>
+            <p><strong>Email:</strong> {{ invoice.customer.email|default:"N/A" }}</p>
+            <p><strong>Address:</strong> {{ invoice.customer.address|linebreaksbr|default:"N/A" }}</p>
+            <p><strong>Phone:</strong> {{ invoice.customer.phone|default:"N/A" }}</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <h5>Invoice Information</h5>
+            <p><strong>Invoice #:</strong> {{ invoice.invoice_number }}</p>
+            <p><strong>Issue Date:</strong> {{ invoice.issue_date|date:"M d, Y" }}</p>
+            <p><strong>Due Date:</strong> {{ invoice.due_date|date:"M d, Y" }}</p>
+            <p><strong>Status:</strong> <span class="badge bg-{% if invoice.status == 'Paid' %}success{% elif invoice.status == 'Overdue' %}danger{% else %}secondary{% endif %}">{{ invoice.status }}</span></p>
+        </div>
+    </div>
+
+    <hr>
+
+    <h5>Items</h5>
+    {% if invoice.items.all %}
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th class="text-center">Quantity</th>
+                        <th class="text-end">Unit Price</th>
+                        <th class="text-end">Line Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in invoice.items.all %}
+                        <tr>
+                            <td>{{ item.description }}</td>
+                            <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                            <td class="text-end">${{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">${{ item.line_total|floatformat:2 }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="3" class="text-end"><strong>Total Amount:</strong></td>
+                        <td class="text-end"><strong>${{ invoice.total_amount|floatformat:2 }}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    {% else %}
+        <p>No items added to this invoice.</p>
+    {% endif %}
+
+    {% if invoice.notes %}
+        <hr>
+        <h5>Notes</h5>
+        <p>{{ invoice.notes|linebreaksbr }}</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Invoice List{% endblock %}
+
+{% block content %}
+<div class="card p-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4>Your Invoices</h4>
+        <a href="{% url 'invoice_create' %}" class="btn btn-primary">Create New Invoice</a>
+    </div>
+
+    {% if invoices %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Customer</th>
+                        <th>Issue Date</th>
+                        <th>Due Date</th>
+                        <th>Total Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for invoice in invoices %}
+                        <tr>
+                            <td><a href="{% url 'invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a></td>
+                            <td>{{ invoice.customer.name }}</td>
+                            <td>{{ invoice.issue_date|date:"M d, Y" }}</td>
+                            <td>{{ invoice.due_date|date:"M d, Y" }}</td>
+                            <td>${{ invoice.total_amount|floatformat:2 }}</td>
+                            <td><span class="badge bg-{% if invoice.status == 'Paid' %}success{% elif invoice.status == 'Overdue' %}danger{% else %}secondary{% endif %}">{{ invoice.status }}</span></td>
+                            <td>
+                                <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-sm btn-info text-white">View</a>
+                                <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-sm btn-warning text-white">Edit</a>
+                                <a href="{% url 'invoice_pdf' invoice.pk %}" class="btn btn-sm btn-secondary" target="_blank">PDF</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p>No invoices found. <a href="{% url 'invoice_create' %}">Create your first invoice!</a></p>
+    {% endif %}
+</div>
+{% endblock %}
