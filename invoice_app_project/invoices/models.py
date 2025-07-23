@@ -1,4 +1,5 @@
 # Create your models here.
+from decimal import Decimal
 from django.db import models
 from django.urls import reverse
 import uuid # For unique invoice numbers
@@ -50,16 +51,27 @@ class Invoice(models.Model):
         return f"Invoice {self.invoice_number} for {self.customer.name}"
 
 class InvoiceItem(models.Model):
-    """Represents a single line item within an invoice."""
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')
     description = models.CharField(max_length=255)
-    quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=0) # <--- Check this line
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=0) # <--- Check this line
+# class InvoiceItem(models.Model):
+#     """Represents a single line item within an invoice."""
+#     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')
+#     description = models.CharField(max_length=255)
+#     quantity = models.DecimalField(max_digits=10, decimal_places=2)
+#     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
 
+    # @property
+    # def line_total(self):
+    #     """Calculates the total for this line item."""
+    #     return self.quantity * self.unit_price
     @property
     def line_total(self):
-        """Calculates the total for this line item."""
-        return self.quantity * self.unit_price
+    # Ensure quantity and unit_price are not None before multiplication
+        quantity = self.quantity if self.quantity is not None else Decimal('0.00')
+        unit_price = self.unit_price if self.unit_price is not None else Decimal('0.00')
+        return quantity * unit_price
 
     def __str__(self):
         return f"{self.description} ({self.invoice.invoice_number})"
